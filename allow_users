@@ -1,0 +1,5 @@
+# login users
+# if this file not exists, http server will allow anonymous login
+# password is unencrypted, please keep this file secret
+
+#user=password

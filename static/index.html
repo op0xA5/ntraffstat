@@ -1,0 +1,65 @@
+<html>
+<head>
+	<title>Nginx Traffic</title>
+	<script src="zepto.min.js"></script>
+	<script src="core.js"></script>
+	<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+	<header>
+		<select id="table">
+			<option value="ip">IP</option>
+			<option value="host">Host</option>
+			<option value="path">Path</option>
+			<option value="url">URL</option>
+			<option value="file">File</option>
+		</select>
+		<select id="timespan">
+			<option value="m5">5 Minutes</option>
+			<option value="h">Hour</option>
+			<option value="d">Day</option>
+		</select>
+		<span class="timeSelector">
+			<input id="date" type="date" />
+			<select id="time"></select>
+			<button id="show">Show</button>
+			<button id="now">Realtime</button>
+		</span>
+
+		<span class="search">
+			<input id="search" placeholder="Search..." />
+		</span>
+	</header>
+
+	<table class="head">
+		<thead>
+			<tr>
+				<th class="name"><a class="sort" sort-by="name">Name</a></th>
+				<th><a class="sort" sort-by="req">Req</a></th>
+				<th><a>Req/s</a></th>
+				<th><a class="sort" sort-by="body">Body [K]</a></th>
+				<th><a>Body/s [K]</a></th>
+				<th><a class="sort" sort-by="bodypreq">Body/req [K]</a></th>
+			</tr>
+		</thead>
+	</table>
+	<table class="body">
+		<tbody id="report"></tbody>
+	</table>
+
+	<footer>
+		<span id="recCount">--- Records</span>
+		/ Number of rows
+		<select id="pageSize">
+			<option value="100">100</option>
+			<option value="500">500</option>
+			<option value="1000">1000</option>
+			<option value="2000">2000</option>
+		</select>
+
+		<span class="pagination" style="float:right">
+		<input id="page" type="number" min="1" max="1"/> / <input id="pageTotal" disabled />
+		</span>
+	</footer>
+</body>
+</html>
