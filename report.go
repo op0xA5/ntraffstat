@@ -57,8 +57,9 @@ func recommendReportCap(rt ReportType, length int) int {
 } 
 
 type ReportData struct {
-	Req  uint64
-	Body uint64
+	Req     uint64
+	DataReq uint64
+	Body    uint64
 }
 
 type Report struct {
@@ -79,6 +80,9 @@ func (r *Report) Inc(name Name, data ReportData) {
 		r.m[name] = v
 	}
 	v.Req += data.Req
+	if v.Body != 0 {
+		v.DataReq += data.Req
+	}
 	v.Body += data.Body
 	r.lock.Unlock()
 }
@@ -138,7 +142,7 @@ func (rs *ReportSnapshot) WriteJson(w io.Writer) error {
 
 	var err error
 	if _, err = fmt.Fprintf(w,
-		`{"begin":"%s","end":"%s","archive":%t,"length":%d,"fields":["req","body"],"names":[`,
+		`{"begin":"%s","end":"%s","archive":%t,"length":%d,"fields":["req","dreq","body"],"names":[`,
 		rs.begin.Format(time.RFC3339), rs.end.Format(time.RFC3339), rs.filename != "",
 		len(rs.items)); err != nil {
 		return err
@@ -162,6 +166,8 @@ func (rs *ReportSnapshot) WriteJson(w io.Writer) error {
 			w.Write(comma)
 		}
 		w.Write(strconv.AppendUint(buffer[:0], item.data.Req, 10))
+		w.Write(comma)
+		w.Write(strconv.AppendUint(buffer[:0], item.data.DataReq, 10))
 		w.Write(comma)
 		w.Write(strconv.AppendUint(buffer[:0], item.data.Body, 10))	
 		if err != nil {

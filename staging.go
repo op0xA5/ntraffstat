@@ -111,6 +111,10 @@ func tableFillSnapshot(t *Table, rt ReportType, rs *ReportSnapshot) error {
 	return nil
 }
 
+const(
+	FileStructReqBody     = 0
+	FileStructReqDreqBody = 1
+)
 func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 	f, err := os.Open(filename)
 	if err != nil {
@@ -134,6 +138,7 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 
 	var str string
 	var length int
+	var fieldStruct int
 	for d.More() {
 		if str, err = jsonGetString(d); err != nil {
 			return nil, err
@@ -168,7 +173,11 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 			if err = d.Decode(r); err != nil {
 				return nil, err
 			}
-			if string(*r) != `["req","body"]` {
+			if string(*r) == `["req","body"]` {
+				fieldStruct = FileStructReqBody		
+			} else if string(*r) == `["req","body"]` {
+				fieldStruct = FileStructReqDreqBody
+			} else {
 				return nil, ErrBadFieldsSet
 			}
 		case "names":
@@ -207,27 +216,61 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 			if snap.items == nil {
 				snap.items = make([]nameDataPair, length)
 			}
-			var n int
-			for d.More() {
-				if n >= len(snap.items) {
-					return nil, ErrLengthNotMatch
-				}
+			if fieldStruct == FileStructReqBody {
+				var n int
+				for d.More() {
+					if n >= len(snap.items) {
+						return nil, ErrLengthNotMatch
+					}
 
-				var rd ReportData
-				if str, err = jsonGetNumber(d); err != nil {
-					return nil, err
+					var rd ReportData
+					if str, err = jsonGetNumber(d); err != nil {
+						return nil, err
+					}
+					if rd.Req, err = strconv.ParseUint(str, 10, 64); err != nil {
+						return nil, err
+					}
+					if str, err = jsonGetNumber(d); err != nil {
+						return nil, err
+					}
+					if rd.Body, err = strconv.ParseUint(str, 10, 64); err != nil {
+						return nil, err
+					}
+					rd.DataReq = rd.Req
+					snap.items[n].data = rd
+					n++
 				}
-				if rd.Req, err = strconv.ParseUint(str, 10, 64); err != nil {
-					return nil, err
+			} else if fieldStruct == FileStructReqDreqBody {
+				var n int
+				for d.More() {
+					if n >= len(snap.items) {
+						return nil, ErrLengthNotMatch
+					}
+
+					var rd ReportData
+					if str, err = jsonGetNumber(d); err != nil {
+						return nil, err
+					}
+					if rd.Req, err = strconv.ParseUint(str, 10, 64); err != nil {
+						return nil, err
+					}
+					if str, err = jsonGetNumber(d); err != nil {
+						return nil, err
+					}
+					if rd.DataReq, err = strconv.ParseUint(str, 10, 64); err != nil {
+						return nil, err
+					}
+					if str, err = jsonGetNumber(d); err != nil {
+						return nil, err
+					}
+					if rd.Body, err = strconv.ParseUint(str, 10, 64); err != nil {
+						return nil, err
+					}
+					snap.items[n].data = rd
+					n++
 				}
-				if str, err = jsonGetNumber(d); err != nil {
-					return nil, err
-				}
-				if rd.Body, err = strconv.ParseUint(str, 10, 64); err != nil {
-					return nil, err
-				}
-				snap.items[n].data = rd
-				n++
+			} else {
+				panic("bad field struct")
 			}
 			if err = jsonTestDelim(d, ']'); err != nil {
 				return nil, err

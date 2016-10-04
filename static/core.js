@@ -79,12 +79,14 @@ $(function() {
 	};
 	renderTimeSelection(false, new Date());
 
-	var reportItem = function(id, name, req, body) {
+	var reportItem = function(id, name, req, dreq, body) {
 		this.id = id;
 		this.name = name;
 		this.req = req;
+		this.dreq = dreq;
+		this.dreqratio = req == 0 ? 0 : dreq / req;
 		this.body = body;
-		this.bodypreq = body / req;
+		this.bpdr = body / (req == 0 ? 1 : req);
 	};
 	var processReport = function (data, sortBy, desc, from, limit, filter) {
 		if (sortBy && typeof sortBy != 'function') {
@@ -93,19 +95,35 @@ $(function() {
 				case 'name':
 				default: sortBy = function(a, b) { return a.name == b.name ? 0 : (a.name > b.name ? 1 : -1); }; break;
 				case 'req': sortBy = function(a, b) { return a.req == b.req ? 0 : (a.req > b.req ? 1 : -1); }; break;
+				case 'dreq': sortBy = function(a, b) { return a.dreq == b.dreq ? 0 : (a.dreq > b.dreq ? 1 : -1); }; break;
+				case 'dreqratio': sortBy = function(a, b) { return a.dreqratio == b.dreqratio ? 0 : (a.dreqratio > b.dreqratio ? 1 : -1); }; break;
 				case 'body': sortBy = function(a, b) { return a.body == b.body ? 0 : (a.body > b.body ? 1 : -1); }; break;
-				case 'bodypreq': sortBy = function(a, b) { return a.bodypreq == b.bodypreq ? 0 : (a.bodypreq > b.bodypreq ? 1 : -1); }; break;
+				case 'bpdr': sortBy = function(a, b) { return a.bpdr == b.bpdr ? 0 : (a.bpdr > b.bpdr ? 1 : -1); }; break;
 			}
 		}
 
 		if (!data.length) return [];
 
-		var items = new Array(data.length), n = 0;
-		for (var i = 0; i < data.length; i++) {
-			if (!filter || data.names[i].indexOf(filter) != -1) {
-				items[n++] = new reportItem(i, data.names[i], data.data[i * 2], data.data[i * 2 + 1]);
-			}
+		var items = new Array(data.length), n = 0, di = 0;
+		switch (data.fields.join(',')) {
+			case 'req,body':
+				for (var i = 0; i < data.length; i++) {
+					if (!filter || data.names[i].indexOf(filter) != -1) {
+						items[n++] = new reportItem(i, data.names[i], data.data[di], data.data[di++], data.data[di++]);
+					}
+				}
+				break;
+			case 'req,dreq,body':
+				for (var i = 0; i < data.length; i++) {
+					if (!filter || data.names[i].indexOf(filter) != -1) {
+						items[n++] = new reportItem(i, data.names[i], data.data[di++], data.data[di++], data.data[di++]);
+					}
+				}
+				break;
+			default:
+				console.debug('unknown fields struct');
 		}
+
 		if (n < data.length) items = items.slice(0, n);
 
 		if (sortBy) {
@@ -185,10 +203,17 @@ $(function() {
 			tr.title = item.name;
 			tr.appendChild(td);
 			td = document.createElement('TD');
-			td.innerText = item.req;
+			td.innerText = ''+item.req;
 			tr.appendChild(td);
 			td = document.createElement('TD');
 			td.innerText = (item.req / seconds).toFixed(2);
+			tr.appendChild(td);
+			td = document.createElement('TD');
+			td.innerText = ''+item.dreq;
+			tr.appendChild(td);
+			td = document.createElement('TD');
+			td.className = 'small';
+			td.innerText = (item.dreqratio*100).toFixed(1)+'%';
 			tr.appendChild(td);
 			td = document.createElement('TD');
 			td.innerText = (item.body / 1024).toFixed(2);;
@@ -197,7 +222,7 @@ $(function() {
 			td.innerText = (item.body / 1024 / seconds).toFixed(2);
 			tr.appendChild(td);
 			td = document.createElement('TD');
-			td.innerText = (item.bodypreq / 1024).toFixed(2);
+			td.innerText = (item.bpdr / 1024).toFixed(2);
 			tr.appendChild(td);
 			fg.appendChild(tr);
 		});
@@ -359,8 +384,16 @@ $(function() {
 		renderCharts();
 	});
 	$('#now').click(function() {
+		var timespan = $('#timespan').val(), table = $('#table').val();
+		switch (table) {
+			case "ip":   reportHasInfo = false; break;
+			case "host": reportHasInfo = false; break;
+			case "path": reportHasInfo = "urlinfo,path_refer"; break;
+			case "url":  reportHasInfo = "urlinfo,url_refer"; break;
+			case "file": reportHasInfo = "fileinfo,file_path"; break;
+		}
 		$.ajax({
-			url: formatString('/table/$1/$2/realtime', $('#timespan').val(), $('#table').val()),
+			url: formatString('/table/$1/$2/realtime', timespan, table),
 			cache: false,
 			dataType: 'json',
 			success: renderReport,
