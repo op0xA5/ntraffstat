@@ -113,13 +113,16 @@ func workLoop() {
 				next = next.Add(update.Duration(next))
 			}
 
-			if !(rr.File == "" || rr.File == "-" ||
-				strings.HasPrefix(rr.File, Config.FileRoot)) {
-				continue
+			if rr.File != "" && rr.File != "-" {
+				if strings.HasPrefix(rr.File, Config.FileRoot) {
+					rr.File = rr.File[len(Config.FileRoot):]
+				} else {
+					continue
+				}
 			}
-			rr.Refer = strings.TrimPrefix(rr.Refer, "http://")
 
-			rr.File = rr.File[len(Config.FileRoot):]
+			rr.Refer = strings.TrimPrefix(rr.Refer, "http://")
+			
 			rec := Record{
 				Time:  rr.Time,
 				Ip:    np_ip.Put(rr.Ip),

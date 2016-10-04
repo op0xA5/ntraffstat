@@ -442,7 +442,7 @@ $(function() {
 						var li = $('<li>').text(item).appendTo(ul);
 						var url = item;
 						if (!url.match(/^http:\/\//)) url = 'http://'+url;
-						$('<a>').css({ float: 'right' }).attr({ href: url, target: '_blank', rel: 'noopener', title: url }).text('Open').appendTo(li);
+						$('<a>').css({ float: 'right' }).attr({ href: url, target: '_blank', rel: '"noopener noreferrer"', title: url }).text('Open').appendTo(li);
 					});
 				},
 				error: function() {
@@ -457,8 +457,8 @@ $(function() {
 			$('<span class="title">').text('URL info:').appendTo(e);
 			var url = name;
 			if (!url.match(/^http:\/\//)) url = 'http://'+url;
-			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: url, target: '_blank', rel: 'noopener', title: url }).text('Open URL').appendTo(e);			
-			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: 'view-source:'+url, target: '_blank', rel: 'noopener', title: url }).text('View Source').appendTo(e);
+			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: url, target: '_blank', rel: '"noopener noreferrer"', title: url }).text('Open URL').appendTo(e);			
+			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: 'view-source:'+url, target: '_blank', rel: '"noopener noreferrer"', title: url }).text('View Source').appendTo(e);
 
 			var ul = $('<ul>').appendTo(e);
 			$('<li class="loading">').text('loading').appendTo(ul);

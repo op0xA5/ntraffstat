@@ -77,7 +77,7 @@ func main() {
 		go startHttpServer(ln)
 	}
 
-	ioutil.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0660)
+	ioutil.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove(pidFile)
 
 	sigChan := make(chan os.Signal, 1)
