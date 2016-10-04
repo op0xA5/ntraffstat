@@ -433,8 +433,8 @@ func (_ referHandler) ServeHTTP(w ResponseWriter, r *Request) {
 	case "/path_refer":
 		rt = ref_path_refer
 		np = np_url
-	case "/file_url":
-		rt = ref_file_url
+	case "/file_path":
+		rt = ref_file_path
 		np = np_file
 	default:
 		Error(w, "404 Not Found", StatusNotFound)
@@ -467,6 +467,8 @@ func startHttpServer(l net.Listener) {
 	mux.Handle("/table/", StripPrefix("/table", tableHandler{}))
 	mux.Handle("/trend/", StripPrefix("/trend", trendHandler{}))
 	mux.Handle("/refer/", StripPrefix("/refer", referHandler{}))
+	mux.Handle("/urlinfo", urlInfoHandler{})
+	mux.Handle("/fileinfo", fileInfoHandler{})
 	mux.Handle("/", staticHandler{})
 
 	Serve(l, mux)

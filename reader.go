@@ -20,6 +20,12 @@ func (rp RecordParser) Parse(s string) *Record {
 	var r [16]string
 }*/
 
+type RecordFlags int
+const (
+	StripFullUrl = RecordFlags(1 << iota)
+	NoRefer
+)
+
 type RawRecord struct {
 	Time  time.Time
 	Ip    string
@@ -34,6 +40,7 @@ type RecordReader struct {
 	RawRecord
 	bufio.Scanner
 
+	flags RecordFlags
 	valid bool
 }
 func NewRecordReader(r io.Reader) *RecordReader {
@@ -49,14 +56,20 @@ func (rr *RecordReader) Scan() bool {
 		return false
 	}
 
-	rr.valid = rr.Parse(rr.Bytes())
+	rr.valid = rr.ParseFlags(rr.Bytes(), rr.flags)
 	return true
+}
+func (rr *RecordReader) AddFlag(flags RecordFlags) {
+	rr.flags |= flags
 }
 func (rr *RecordReader) Valid() bool {
 	return rr.valid
 }
 
 func (rr *RawRecord) Parse(s []byte) bool {
+	return rr.ParseFlags(s, 0)
+}
+func (rr *RawRecord) ParseFlags(s []byte, flags RecordFlags) bool {
 	if len(s) == 0 {
 		return false
 	}
@@ -79,7 +92,7 @@ func (rr *RawRecord) Parse(s []byte) bool {
 	if p == -1 {
 		return false
 	}
-	url := s[:p]
+	req := s[:p]
 	s = bytes.TrimLeftFunc(s[p+1:], isAnsiSpace)
 
 	p = bytes.IndexByte(s, ' ')
@@ -111,13 +124,39 @@ func (rr *RawRecord) Parse(s []byte) bool {
 	if p == -1 {
 		return false
 	}
-	refer := s[:p]
 
-	rr.Host, rr.Path, rr.Url = parseUrl(string(url))
 	rr.Ip    = string(ip)
 	rr.File  = string(file)
 	rr.Body  = body
-	rr.Refer = string(refer)
+
+	if flags & NoRefer != 0 {
+		if flags & StripFullUrl != 0 {
+			rr.Host, rr.Path, _ = parseUrl(string(req))
+			rr.Url = ""
+		} else {
+			rr.Host, rr.Path, rr.Url = parseUrl(string(req))
+		}
+		rr.Refer = ""	
+	} else {
+		refer := s[:p]
+		if flags & StripFullUrl != 0 {
+			rr.Host, rr.Path, _ = parseUrl(string(req))
+			rr.Url = ""
+
+			pos := bytes.IndexByte(refer, '?')
+			if pos != -1 {
+				refer = refer[:p]
+			}
+		} else {
+			rr.Host, rr.Path, rr.Url = parseUrl(string(req))
+		}
+
+		rr.Refer, err = url.QueryUnescape(string(refer))
+		if err != nil {
+			rr.Refer = string(s[:p])
+		}
+	}
+
 	return true
 }
 func isAnsiSpace(r rune) bool {

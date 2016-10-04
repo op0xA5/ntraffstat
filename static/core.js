@@ -79,7 +79,8 @@ $(function() {
 	};
 	renderTimeSelection(false, new Date());
 
-	var reportItem = function(name, req, body) {
+	var reportItem = function(id, name, req, body) {
+		this.id = id;
 		this.name = name;
 		this.req = req;
 		this.body = body;
@@ -102,7 +103,7 @@ $(function() {
 		var items = new Array(data.length), n = 0;
 		for (var i = 0; i < data.length; i++) {
 			if (!filter || data.names[i].indexOf(filter) != -1) {
-				items[n++] = new reportItem(data.names[i], data.data[i * 2], data.data[i * 2 + 1]);
+				items[n++] = new reportItem(i, data.names[i], data.data[i * 2], data.data[i * 2 + 1]);
 			}
 		}
 		if (n < data.length) items = items.slice(0, n);
@@ -135,19 +136,19 @@ $(function() {
 		pageSize: 100,
 		search: '',
 	};
-	var cachedReport = null;
+	var cachedReport = null, reportHasInfo = false;
 	var renderReport = function(data) {
 		if (!data) data = cachedReport;
 		if (!data) return;
 		cachedReport = data;
 
-		if (data.length == 0) {
+		if (!data.length) {
 			$('#report').html('<div class="noItem">No Items</div>');
 			return;
 		}
 
 		renderTimeSelection(false, new Date(data.begin));
-		var seconds = Date.parse(data.end) - Date.parse(data.begin);
+		var seconds = Math.floor((new Date(data.end).getTime() - new Date(data.begin).getTime()) / 1000);
 		if (seconds < 1) seconds = 1;
 		var report = processReport(data, reportSetting.sortBy, reportSetting.sortDesc,
 			(reportSetting.page - 1) * reportSetting.pageSize, reportSetting.pageSize,
@@ -175,6 +176,13 @@ $(function() {
 			var td = document.createElement('TD');
 			td.className = 'name';
 			td.innerText = item.name;
+			if (reportHasInfo) {
+				var info = document.createElement('SPAN');
+				info.innerHTML = info.className = 'info';
+				info.setAttribute('data-id', item.id);
+				td.appendChild(info);
+			}
+			tr.title = item.name;
 			tr.appendChild(td);
 			td = document.createElement('TD');
 			td.innerText = item.req;
@@ -189,7 +197,7 @@ $(function() {
 			td.innerText = (item.body / 1024 / seconds).toFixed(2);
 			tr.appendChild(td);
 			td = document.createElement('TD');
-			td.innerText = (item.bodypreq / 1024).toFixed(2);;
+			td.innerText = (item.bodypreq / 1024).toFixed(2);
 			tr.appendChild(td);
 			fg.appendChild(tr);
 		});
@@ -200,13 +208,23 @@ $(function() {
 	var cachedCharts = null, chartsSpan = 0, chartTimeformat = '2016-01-02';
 	var drawCharts = function(data, mx, my) {
 		if (!data) data = cachedCharts;
-		if (!data || !data.length) return;
+		if (!data) return;
 		cachedCharts = data;
 
 		var offset = eCanvas.offset();
 		eCanvas.attr({ width: offset.width, height: offset.height });
 		var ctx = eCanvas[0].getContext("2d");
 		ctx.font = '12px monospace';
+		ctx.clearRect(0, 0, offset.width, offset.height);
+
+		if (!data.length) {
+			ctx.fillStyle = '#666';
+			ctx.textAlign = 'left';
+			var offset = eCanvas.offset();
+			ctx.clearRect(0, 0, offset.width, offset.height);
+			ctx.fillText('No Charts', 26, 12);
+			return null;
+		}
 
 		var pWidth = offset.width / data.length, pWidth_2 = pWidth / 2;
 		var maxReq = 0, maxBody = 0;
@@ -227,7 +245,7 @@ $(function() {
 
 			var begin = new Date(data.begin);
 			var time = begin.getTime();
-			time += (new Date(data.end).getTime() - time) / data.length * x *chartsSpan;
+			time += (new Date(data.end).getTime() - time) / data.length * x * chartsSpan;
 			begin.setTime(time);
 			selectedInfo = {
 				time: begin,
@@ -269,9 +287,9 @@ $(function() {
 			ctx.stroke();
 			if (sWidth) {
 				ctx.fillStyle = "#666";
-				var v = 1 - my / offset.height;
+				var v = 1 - my / offset.height, secs = data.duration / data.length;
 				var text1, text2;
-				text1 = formatString('Req $1, Body $2K', (v * maxReq).toFixed(0), (v * maxBody / 1024).toFixed(2));
+				text1 = formatString('Req $1/s, Body $2K/s', (v * maxReq / secs).toFixed(0), (v * maxBody / secs / 1024).toFixed(2));
 				if (chartTimeformat && selectedInfo) text2 = formatTime(chartTimeformat, selectedInfo.time);
 				if (mx < offset.width / 2) {
 					x = Math.floor(mx / sWidth) * sWidth + sWidth + 6;
@@ -310,7 +328,6 @@ $(function() {
 			$('#show').click();
 		}
 	});
-
 	var renderCharts = function () {
 		var time = getSelectedTime(), timespan = $('#timespan').val(), timeFormat;
 		switch (timespan) {
@@ -318,13 +335,16 @@ $(function() {
 			default:  timespan = 'm'; timeFormat = '2006010203'; chartsSpan = 5; chartTimeformat = '2006-01-02 03:04'; break;
 			case "h": timespan = 'm'; timeFormat = '2006010203'; chartsSpan = 60; chartTimeformat = '2006-01-02 03'; break;
 			case "d": timespan = 'h'; timeFormat = '20060102'; chartsSpan = 24; chartTimeformat = '2006-01-02'; break;
-		}
+		}		
 		$.ajax({
 			url: formatString('/trend/$1/$2', timespan, formatTime(timeFormat, time)),
 			cache: false,
 			dataType: 'json',
 			success: function(data) {
 				drawCharts(data);
+			},
+			error: function() {
+				drawCharts({ length: 0 });
 			},
 		});
 	};
@@ -344,21 +364,31 @@ $(function() {
 			cache: false,
 			dataType: 'json',
 			success: renderReport,
+			error: function() { renderReport({ length: 0 }); },
 		});
 	});
 	$('#show').click(function() {
 		var time = getSelectedTime(), timespan = $('#timespan').val(), timeFormat;
+		var table = $('#table').val();
 		switch (timespan) {
 			case "m5":
 			default:  timeFormat = '200601020304'; break;
 			case "h": timeFormat = '2006010203'; break;
 			case "d": timeFormat = '20060102'; break;
 		}
+		switch (table) {
+			case "ip":   reportHasInfo = false; break;
+			case "host": reportHasInfo = false; break;
+			case "path": reportHasInfo = "urlinfo,path_refer"; break;
+			case "url":  reportHasInfo = "urlinfo,url_refer"; break;
+			case "file": reportHasInfo = "fileinfo,file_path"; break;
+		}
 		$.ajax({
-			url: formatString('/table/$1/$2/$3', timespan, $('#table').val(), formatTime(timeFormat, time)),
+			url: formatString('/table/$1/$2/$3', timespan, table, formatTime(timeFormat, time)),
 			cache: false,
 			dataType: 'json',
 			success: renderReport,
+			error: function() { renderReport({ length: 0 }); },
 		});
 	});
 	$('.sort').click(function() {
@@ -392,5 +422,106 @@ $(function() {
 			reportSetting.page = 1;
 			renderReport();
 		}
+	});
+
+	var refererRender = function(type) {
+		return function(e, name) {
+			$('<span class="title">').text('Referers:').appendTo(e);
+			var ul = $('<ul>').appendTo(e);
+			$('<li class="loading">').text('loading').appendTo(ul);
+			$.ajax({
+				url: formatString('/refer/$1?q=$2', type, encodeURI(name)),
+				cache: false,
+				dataType: 'json',
+				success: function(data) {
+					ul.empty();
+					if (!data || !data.length) {
+						$('<li class="noitem">').text('No Items').appendTo(ul);
+					}
+					data.forEach(function(item) {
+						var li = $('<li>').text(item).appendTo(ul);
+						var url = item;
+						if (!url.match(/^http:\/\//)) url = 'http://'+url;
+						$('<a>').css({ float: 'right' }).attr({ href: url, target: '_blank', rel: 'noopener', title: url }).text('Open').appendTo(li);
+					});
+				},
+				error: function() {
+					ul.empty();
+					$('<li class="failed">').text('error').appendTo(ul);
+				},
+			});
+		}
+	}
+	var reportInfoRenders = {
+		urlinfo: function(e, name) {
+			$('<span class="title">').text('URL info:').appendTo(e);
+			var url = name;
+			if (!url.match(/^http:\/\//)) url = 'http://'+url;
+			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: url, target: '_blank', rel: 'noopener', title: url }).text('Open URL').appendTo(e);			
+			$('<a>').css({ float: 'right', marginLeft: 8 }).attr({ href: 'view-source:'+url, target: '_blank', rel: 'noopener', title: url }).text('View Source').appendTo(e);
+
+			var ul = $('<ul>').appendTo(e);
+			$('<li class="loading">').text('loading').appendTo(ul);
+			$.ajax({
+				url: formatString('/urlinfo?q=$1', encodeURI(name)),
+				cache: false,
+				dataType: 'json',
+				success: function(data) {
+					ul.empty();
+					data.forEach(function(item) {
+						$('<li>').text(item).appendTo(ul);
+					});
+				},
+				error: function() {
+					ul.empty();
+					$('<li class="failed">').text('error').appendTo(ul);
+				},
+			});
+		},
+		path_refer: refererRender('path_refer'),
+		url_refer: refererRender('url_refer'),
+		fileinfo: function(e, name) {
+			$('<span class="title">').text('File info:').appendTo(e);
+			var ul = $('<ul>').appendTo(e);
+			$('<li class="loading">').text('loading').appendTo(ul);
+			$.ajax({
+				url: formatString('/fileinfo?q=$1', encodeURI(name)),
+				cache: false,
+				dataType: 'json',
+				success: function(data) {
+					ul.empty();
+					data.forEach(function(item) {
+						$('<li>').text(item).appendTo(ul);
+					});
+				},
+				error: function() {
+					ul.empty();
+					$('<li class="failed">').text('error').appendTo(ul);
+				},
+			});
+		},
+		file_path: refererRender('file_path'),
+	};
+	$('table').on('click', '.info', function() {
+		var id = parseInt($(this).attr('data-id'));
+		if (!Number.isFinite(id)) return;
+		if (!(cachedReport && cachedReport.names)) return;
+		var name = cachedReport.names[id];
+
+		var body = $('#popupUrlInfo [data=body]').empty();
+		$('#popupUrlInfo [data=title]').text(name);
+		reportHasInfo.split(',').forEach(function(type) {
+			if (reportInfoRenders.hasOwnProperty(type)) {
+				var e = $('<div>').addClass(type).addClass('panel').appendTo(body);
+				reportInfoRenders[type](e, cachedReport.names[id], cachedReport, id);
+			}
+		});
+		$('#popupUrlInfo').show();
+		$('body').addClass('popup-show');
+	});
+
+	$('body').on('click', '.popup .x', function() {
+		$(this).closest('.popup').hide();
+		$('body').removeClass('popup-show');
 	});
 });

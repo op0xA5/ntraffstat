@@ -7,13 +7,22 @@ import (
 	"log"
 )
 
-func OpenFifo(file string) (io.ReadCloser, error) {
+func OpenFifo(file string, recreateIfNotFifo bool) (io.ReadCloser, error) {
 	r, isFifo, err := _openFifo(file)
 	if err != nil {
 		return nil, err
 	}
 	if !isFifo {
 		log.Printf("warn %s is not fifo\n", file)
+		if recreateIfNotFifo {
+			if err = os.Remove(file); err != nil {
+				return nil, err
+			}
+			r, isFifo, err = _openFifo(file)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 	if isFifo {
 		return &reopenReader{ file, r }, nil

@@ -9,25 +9,71 @@ import (
 	"os/signal"
 	"syscall"
 	"net"
+	"strings"
+	"encoding/json"
+	"bytes"
 )
-var httpAddr string = ":8091"
+
+const ConfigFilename string = "config.json"
+
 var pidFile string = os.Args[0] + ".pid"
+type ConfigType struct {
+	HttpListen          string
+
+	FifoFile            string
+	RecreateIfNotFifo   bool
+//	CmdAfterFifoCreated     string
+
+	FileRoot            string
+
+	RecordFullUrl       bool
+	RecordRefer         bool
+}
+var Config = ConfigType{
+	HttpListen:    ":8091",
+
+	FifoFile:            "/tmp/nginx_traffic.log",
+	RecreateIfNotFifo:   false,
+//	CmdAfterFifoCreated: "",
+
+	RecordFullUrl: true,
+	RecordRefer:   true,
+}
 
 func main() {
 	log.SetOutput(os.Stderr)
 	log.SetFlags(log.Ldate | log.Ltime)
 
+	err := LoadConfig()
+	if err != nil {
+		log.Printf("failed load config: %v\n", err)
+		return
+	}
+
 	initWorker()
 
-	loadWorkerStaging()
+	Config.FileRoot = strings.TrimSuffix(Config.FileRoot, "/")
 
-	startWorker()
+	if Config.FifoFile != "" {
+		fifo, err := OpenFifo(Config.FifoFile, Config.RecreateIfNotFifo)
+		if err != nil {
+			log.Printf("error open fifo: %v\n", err)
+			return
+		}
 
-	ln, err := net.Listen("tcp", httpAddr)
-	if err != nil {
-		log.Printf("failed listen tcp %s, http server offline\n", httpAddr)
+		loadWorkerStaging()
+
+		go workLoop()
+		go readLoop(fifo)
 	} else {
-		log.Printf("start http server at %s\n", httpAddr)
+		log.Println("fifo file not set, start as log reader mode")
+	}
+
+	ln, err := net.Listen("tcp", Config.HttpListen)
+	if err != nil {
+		log.Printf("failed listen tcp %s, http server offline\n", Config.HttpListen)
+	} else {
+		log.Printf("start http server at %s\n", Config.HttpListen)
 		go startHttpServer(ln)
 	}
 
@@ -71,4 +117,43 @@ func main() {
 			}
 		}
 	}
+}
+
+func LoadConfig() error {
+	f, err := os.OpenFile(ConfigFilename, os.O_RDWR, 0660)
+	if os.IsNotExist(err) {
+		f, err = os.Create(ConfigFilename)
+		if err != nil {
+			return err
+		}
+		goto write
+	}
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	err = json.NewDecoder(f).Decode(&Config)
+	if err != nil {
+		return err
+	}
+
+write:
+	b, err := json.Marshal(&Config)
+	if err != nil {
+		return err
+	}
+	var out bytes.Buffer
+	err = json.Indent(&out, b, "", "\t")
+	if err != nil {
+		return err
+	}
+	if _, err = f.Seek(0, 0); err != nil {
+		return err
+	}
+	if err = f.Truncate(0); err != nil {
+		return err
+	}
+	_, err = out.WriteTo(f)
+	return err
 }

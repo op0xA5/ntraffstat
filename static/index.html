@@ -39,7 +39,7 @@
 				<th><a>Req/s</a></th>
 				<th><a class="sort" sort-by="body">Body [K]</a></th>
 				<th><a>Body/s [K]</a></th>
-				<th><a class="sort" sort-by="bodypreq">Body/req [K]</a></th>
+				<th><a class="sort" sort-by="bodypreq">Body/Req [K]</a></th>
 			</tr>
 		</thead>
 	</table>
@@ -49,7 +49,7 @@
 
 	<footer>
 		<span id="recCount">--- Records</span>
-		/ Number of rows
+		/ Page Size:
 		<select id="pageSize">
 			<option value="100">100</option>
 			<option value="500">500</option>
@@ -61,5 +61,16 @@
 		<input id="page" type="number" min="1" max="1"/> / <input id="pageTotal" disabled />
 		</span>
 	</footer>
+
+	<div class="popup" id="popupUrlInfo" style="display:none;">
+		<div class="content">
+			<div class="head">
+				<span class="title" data="title">&nbsp;</span>
+				<div class="x"></div>
+			</div>
+			<div class="body" data="body">				
+			</div>
+		</div>
+	</div>
 </body>
 </html>

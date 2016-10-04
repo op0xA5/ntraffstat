@@ -84,9 +84,9 @@ func loadStaging(t *Table, prefix string, np_ip, np_url, np_file *NamePool) {
 
 var ErrTimespanNotAcceptable = errors.New("timespan not acceptable")
 func tableFillSnapshot(t *Table, rt ReportType, rs *ReportSnapshot) error {
-	if !(rs.end.After(rs.begin) &&
-		rs.begin.After(t.last) &&
-		t.next.After(rs.end)) {
+	if rs.end.Before(rs.begin) ||
+		rs.begin.Before(t.last) ||
+		t.next.Before(rs.end) {
 		return ErrTimespanNotAcceptable
 	}
 	m := NewReport(rt, 0)

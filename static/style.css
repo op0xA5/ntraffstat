@@ -40,3 +40,28 @@ footer .nav { width: 24px; }
 footer .pagination { float: right; }
 footer .pagination input { width: 60px; }
 #page { text-align: right; }
+
+.info { height: 10px; display: inline-block; border: 1px solid #999; border-radius: 4px;
+	text-align: center; line-height: 10px; padding: 1px 6px; color: #777; float: right;
+	font-size: 12px; font-family: serif; font-style: italic;
+	cursor: pointer; display: none;
+}
+table td:hover .info { display: inline-block; }
+
+.popup { position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: overlay; background: rgba(234, 234, 234, 0.5); display: none; }
+.popup .content { width: 600px; min-height: 60px; margin: 32px auto; background: #fff; position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,.5); border-radius: 6px; border: 1px solid rgba(0,0,0,.2); outline: 0; }
+.popup .head { padding: 0px 14px; margin-right: 32px; overflow: hidden; text-overflow: ellipsis; }
+.popup .head .title { line-height: 36px; font-size: 14px; font-weight: bold; color: #666; }
+.popup .x { width: 30px; position: absolute; top: 4px; right: 4px; cursor: pointer;
+	font-size: 26px; color: #e5e5e5; line-height: 30px; text-align: center; }
+.popup .x:after { content: '\d7'; }
+.popup .x:hover { color: #999; }
+.popup .body { position: relative; padding: 12px; border-top: 1px solid #e5e5e5; }
+body.popup-show { overflow: hidden; }
+body.popup-show .popup { display: block !important; }
+
+#popupUrlInfo ul { margin: 0; padding: 0 0 0 32px; overflow: hidden; }
+#popupUrlInfo ul li { list-style: none; }
+#popupUrlInfo .body .panel { margin-top: 8px; padding: 6px 10px; background: #fafafa; border-radius: 4px; }
+#popupUrlInfo .body .panel:first-child { margin-top: 0; }

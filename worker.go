@@ -6,6 +6,7 @@ import(
 	"io"
 	"path"
 	"log"
+	"strings"
 )
 
 var tbl_m5  *Table
@@ -18,7 +19,7 @@ var np_file *NamePool
 
 var ref_url_refer  *RefererTable
 var ref_path_refer *RefererTable
-var ref_file_url   *RefererTable
+var ref_file_path  *RefererTable
 
 var tr_m *Trend
 var tr_h *Trend
@@ -36,6 +37,7 @@ func initWorker() {
 	dump_worker.SetLogger(nil)
 	dump_worker.GzipLevel = 9
 
+
 	tbl_m5  = NewTable(now, DurationTruncater(5 * time.Minute))
 	tbl_m5.SetSavefile("{2006/0102}/m5-{1504}-{type}.json.gz", dump_worker)
 	tbl_h = NewTable(now, DurationTruncater(1 * time.Hour))
@@ -45,7 +47,7 @@ func initWorker() {
 
 	ref_url_refer  = NewRefererTable(128 * 1024)
 	ref_path_refer = NewRefererTable(128 * 1024)
-	ref_file_url   = NewRefererTable(128 * 1024)
+	ref_file_path   = NewRefererTable(128 * 1024)
 
 	tr_m = NewTrend(now, 1 * time.Minute, DurationTruncater(24 * time.Hour))
 	tr_m.SetSavefile("{2006/0102}/tr_m.json.gz", dump_worker)
@@ -70,14 +72,9 @@ func loadWorkerStaging() {
 	log.Println("staging loaded")
 }
 
-var workRC   chan RawRecord
+var workRC   = make(chan RawRecord, 512)
 var workExit bool
 var workFifo io.ReadCloser
-func startWorker() {
-	workRC = make(chan RawRecord, 512)
-	go workLoop(workRC)
-	go readLoop("/tmp/nginx_traffic.log")
-}
 func exitWorker() {
 	workExit = true
 	close(workRC)
@@ -89,7 +86,7 @@ func exitWorker() {
 	dump_worker.Exit()
 }
 
-func workLoop(rc <-chan RawRecord) {
+func workLoop() {
 	runtime.LockOSThread()
 
 	ti := time.NewTicker(50 * time.Millisecond)
@@ -100,7 +97,7 @@ func workLoop(rc <-chan RawRecord) {
 
 	for {
 		select {
-		case rr, more := <- rc:
+		case rr, more := <- workRC:
 			if !more {
 				return
 			}
@@ -108,7 +105,7 @@ func workLoop(rc <-chan RawRecord) {
 			if !rr.Time.Before(next) {
 				ref_url_refer.Empty()
 				ref_path_refer.Empty()
-				ref_file_url.Empty()
+				ref_file_path.Empty()
 				np_ip.Empty()
 				np_url.Empty()
 				np_file.Empty()
@@ -116,6 +113,13 @@ func workLoop(rc <-chan RawRecord) {
 				next = next.Add(update.Duration(next))
 			}
 
+			if !(rr.File == "" || rr.File == "-" ||
+				strings.HasPrefix(rr.File, Config.FileRoot)) {
+				continue
+			}
+			rr.Refer = strings.TrimPrefix(rr.Refer, "http://")
+
+			rr.File = rr.File[len(Config.FileRoot):]
 			rec := Record{
 				Time:  rr.Time,
 				Ip:    np_ip.Put(rr.Ip),
@@ -130,11 +134,14 @@ func workLoop(rc <-chan RawRecord) {
 			tbl_m5.Add(rec)
 			tbl_h.Add(rec)
 			tbl_d.Add(rec)
-			ref_url_refer.Add(rec.Url, rec.Refer)
-			ref_url_refer.Add(rec.Path, rec.Refer)
-			ref_url_refer.Add(rec.File, rec.Url)
+			if Config.RecordRefer {
+				ref_url_refer.Add(rec.Url, rec.Refer)
+				ref_path_refer.Add(rec.Path, rec.Refer)
+				ref_file_path.Add(rec.File, rec.Path)
+			}
 			tr_m.Add(rec.Time, ReportData{ Req: 1, Body: rec.Body })
 			tr_h.Add(rec.Time, ReportData{ Req: 1, Body: rec.Body })
+			
 		case now := <- ti.C:
 			tbl_m5.Flush(now)
 			tbl_h.Flush(now)
@@ -145,15 +152,16 @@ func workLoop(rc <-chan RawRecord) {
 	}
 }
 
-func readLoop(file string) {
-	var err error
-	workFifo, err = OpenFifo(file)
-	if err != nil {
-		log.Printf("error open fifo: %v\n", err)
-	}
-	defer workFifo.Close()
+func readLoop(fifo io.ReadCloser) {
+	defer fifo.Close()
 
-	rr := NewRecordReader(workFifo)
+	rr := NewRecordReader(fifo)
+	if !Config.RecordFullUrl {
+		rr.AddFlag(StripFullUrl)
+	}
+	if !Config.RecordRefer {
+		rr.AddFlag(NoRefer)
+	}
 	for rr.Scan() {
 		if workExit {
 			return
