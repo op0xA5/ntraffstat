@@ -103,8 +103,8 @@ func (r *Report) Snapshot(rs *ReportSnapshot) *ReportSnapshot {
 	return rs
 }
 func (r *Report) loadSnapshotData(rs *ReportSnapshot) {
-	for _, item := range rs.items {
-		r.m[item.name] = &item.data
+	for i := range rs.items {
+		r.m[rs.items[i].name] = &rs.items[i].data
 	}
 }
 

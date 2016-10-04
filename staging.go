@@ -175,7 +175,7 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 			}
 			if string(*r) == `["req","body"]` {
 				fieldStruct = FileStructReqBody		
-			} else if string(*r) == `["req","body"]` {
+			} else if string(*r) == `["req","dreq","body"]` {
 				fieldStruct = FileStructReqDreqBody
 			} else {
 				return nil, ErrBadFieldsSet
@@ -216,14 +216,15 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 			if snap.items == nil {
 				snap.items = make([]nameDataPair, length)
 			}
+
+			var n int
+			var rd ReportData
 			if fieldStruct == FileStructReqBody {
-				var n int
 				for d.More() {
 					if n >= len(snap.items) {
 						return nil, ErrLengthNotMatch
 					}
-
-					var rd ReportData
+					
 					if str, err = jsonGetNumber(d); err != nil {
 						return nil, err
 					}
@@ -241,13 +242,11 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 					n++
 				}
 			} else if fieldStruct == FileStructReqDreqBody {
-				var n int
 				for d.More() {
 					if n >= len(snap.items) {
 						return nil, ErrLengthNotMatch
 					}
 
-					var rd ReportData
 					if str, err = jsonGetNumber(d); err != nil {
 						return nil, err
 					}
@@ -272,6 +271,7 @@ func loadSnapshot(filename string, np *NamePool) (*ReportSnapshot, error) {
 			} else {
 				panic("bad field struct")
 			}
+
 			if err = jsonTestDelim(d, ']'); err != nil {
 				return nil, err
 			}
